@@ -2,6 +2,7 @@
 pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
+import "forge-std/console.sol";
 import "../src/BatchedStateSync.sol";
 import "../src/IResolver.sol";
 
@@ -41,8 +42,8 @@ contract BatchedStateSyncTest is Test {
     // Test setValue and pending updates tracking
     function testSetValueAndPendingUpdates() public {
         // Set values and check if they're properly tracked in pending updates
-        batchedSync.setValue("key1", "value1");
-        batchedSync.setValue("key2", "value2");
+        batchedSync.setBatchedValue("key1", "value1");
+        batchedSync.setBatchedValue("key2", "value2");
         
         // Get the pending updates 
         BatchedStateSync.PendingUpdate[] memory updates = batchedSync.getPendingUpdates();
@@ -61,21 +62,32 @@ contract BatchedStateSyncTest is Test {
     
     // Test crossChainChecker behavior
     function testCrossChainChecker() public {
+        console.log("Testing crossChainChecker...");
+        
         // Initially batch threshold not met
         (bool canExec, bytes memory execPayload, uint256 nonce) = batchedSync.crossChainChecker(DEST_CHAIN_ID);
+        console.log("Initial check - canExec:", canExec);
         assertFalse(canExec, "Should not be ready to execute with no updates");
         
         // Add enough updates to trigger the batch threshold
-        batchedSync.setValue("key1", "value1");
-        batchedSync.setValue("key2", "value2");
-        batchedSync.setValue("key3", "value3");
+        console.log("Adding updates...");
+        batchedSync.setBatchedValue("key1", "value1");
+        batchedSync.setBatchedValue("key2", "value2");
+        batchedSync.setBatchedValue("key3", "value3");
+        
+        // Check pending updates
+        uint256 pending = batchedSync.pendingUpdates();
+        console.log("Pending updates after adding:", pending);
         
         // Now check again, should be ready to execute
         (canExec, execPayload, nonce) = batchedSync.crossChainChecker(DEST_CHAIN_ID);
+        console.log("After threshold - canExec:", canExec, "nonce:", nonce);
         assertTrue(canExec, "Should be ready to execute after threshold reached");
         
         // Verify the execPayload is correctly formatted (contains the processBatch selector)
-        bytes4 selector = bytes4(execPayload[:4]);
+        bytes4 selector = bytes4(execPayload);
+        console.logBytes4(selector);
+        console.logBytes4(batchedSync.processBatch.selector);
         assertEq(selector, batchedSync.processBatch.selector, "Exec payload should contain processBatch selector");
         
         // Verify nonce is correct (should be 1 for first execution)
@@ -85,9 +97,9 @@ contract BatchedStateSyncTest is Test {
     // Test requestRemoteExecution
     function testRequestRemoteExecution() public {
         // Add enough updates to trigger the batch threshold
-        batchedSync.setValue("key1", "value1");
-        batchedSync.setValue("key2", "value2");
-        batchedSync.setValue("key3", "value3");
+        batchedSync.setBatchedValue("key1", "value1");
+        batchedSync.setBatchedValue("key2", "value2");
+        batchedSync.setBatchedValue("key3", "value3");
         
         // Call requestRemoteExecution and capture the event
         vm.expectEmit(true, false, true, false);
@@ -150,7 +162,7 @@ contract BatchedStateSyncTest is Test {
         
         // Verify that the proof hash is marked as used
         bytes32 proofHash = keccak256(abi.encodePacked(SOURCE_CHAIN_ID, sourceContract, uint256(1)));
-        assertTrue(batchedSync.usedProofHashes(proofHash), "Proof hash should be marked as used");
+        assertTrue(batchedSync.isProofUsed(proofHash), "Proof hash should be marked as used");
         
         // Verify state was updated
         bytes memory value1 = batchedSync.getValue(sourceContract, "key1");
@@ -175,7 +187,7 @@ contract BatchedStateSyncTest is Test {
         // Test that the new threshold is respected
         for (uint256 i = 0; i < newThreshold - 1; i++) {
             string memory key = string(abi.encodePacked("key", i));
-            batchedSync.setValue(key, "value");
+            batchedSync.setBatchedValue(key, "value");
         }
         
         // Should not yet be ready to execute
@@ -183,7 +195,7 @@ contract BatchedStateSyncTest is Test {
         assertFalse(canExec, "Should not be ready to execute with less than threshold updates");
         
         // Add one more update to meet threshold
-        batchedSync.setValue("finalKey", "value");
+        batchedSync.setBatchedValue("finalKey", "value");
         
         // Now should be ready to execute
         (canExec,,) = batchedSync.crossChainChecker(DEST_CHAIN_ID);

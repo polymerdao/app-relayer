@@ -50,11 +50,11 @@ contract BatchedStateSync is StateSyncV2, ICrossChainResolver {
     }
     
     /**
-     * @dev Override the setValue function to track pending updates
+     * @dev Set a value and track it for batching
      * @param key The key to set
      * @param value The value to associate with the key
      */
-    function setValue(string calldata key, bytes calldata value) external override {
+    function setBatchedValue(string calldata key, bytes calldata value) external {
         // Call the parent implementation to perform the actual state update
         this.setValue(key, value);
         
@@ -234,5 +234,14 @@ contract BatchedStateSync is StateSyncV2, ICrossChainResolver {
      */
     function getPendingUpdates() external view returns (PendingUpdate[] memory) {
         return pendingUpdateQueue;
+    }
+
+    /**
+     * @dev Public accessor function for the usedProofHashes mapping
+     * @param proofHash The hash to check
+     * @return Whether the proof hash has been used
+     */
+    function isProofUsed(bytes32 proofHash) public view returns (bool) {
+        return usedProofHashes[proofHash];
     }
 }
