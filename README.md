@@ -48,4 +48,11 @@ interface ICrossChainResolver {
 
 ## Implementation Example
 
-TODO
+The `BatchedStateSync.sol` contract demonstrates how to implement the cross-chain resolver interface for batched state updates. This example shows:
+
+- Batching multiple state updates before cross-chain execution
+- Using a threshold to determine when to trigger execution
+- Managing pending updates in a queue
+- Handling cross-chain proof verification
+
+Note: This is a demonstration implementation and should be thoroughly reviewed and tested before use in production.

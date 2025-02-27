@@ -20,15 +20,15 @@ contract StateSyncV2 {
     IPolymerProver public immutable polymerProver;
 
     // Mapping from keccak256(abi.encodePacked(originalSender, key)) => value
-    mapping(bytes32 => bytes) private store;
+    mapping(bytes32 => bytes) internal store;
     // Mapping to track original senders for each key
     mapping(bytes32 => address) private keyOwners;
     // Mapping to track nonces for each sender
     mapping(address => uint256) private nonces;
     // Mapping to track used proof hashes
-    mapping(bytes32 => bool) private usedProofHashes;
+    mapping(bytes32 => bool) internal usedProofHashes;
     // Mapping to track versions for each key
-    mapping(bytes32 => uint256) private keyVersions;
+    mapping(bytes32 => uint256) internal keyVersions;
 
     // Example events for demonstration
     event OnlyTopics(
