@@ -49,7 +49,7 @@ contract BatchedStateSync is StateSyncV2 {
      */
     function setValue(string calldata key, bytes calldata value) external override {
         // Call the parent implementation to perform the actual state update
-        super.setValue(key, value);
+        this.setValue(key, value);
         
         // Get the hashedKey
         bytes32 hashedKey = keccak256(abi.encodePacked(msg.sender, key));
@@ -57,7 +57,7 @@ contract BatchedStateSync is StateSyncV2 {
         // Add to pending updates if not already pending
         if (!isPending[hashedKey]) {
             // Get the version that was just set
-            uint256 version = getKeyVersionByHash(hashedKey);
+            uint256 version = this.getKeyVersionByHash(hashedKey);
             
             pendingUpdateQueue.push(PendingUpdate({
                 hashedKey: hashedKey,
