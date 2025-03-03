@@ -5,7 +5,7 @@ mod proof_fetcher;
 mod event_delivery;
 mod app;
 
-pub use config::{ChainConfig, RelayerConfig};
+pub use config::{ChainConfig, RelayerConfig, RelayPair};
 pub use types::{RelayEvent, ProofRequest, DeliveryRequest, RelayerError};
 pub use event_generator::EventGenerator;
 pub use proof_fetcher::ProofFetcher;

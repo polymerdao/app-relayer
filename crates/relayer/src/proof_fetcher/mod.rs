@@ -46,7 +46,7 @@ impl ProofFetcher {
                 event: event.clone(),
                 tx_hash,
                 destination_chain_id: event.destination_chain.chain_id,
-                dest_contract_address: event.destination_chain.dest_dapp_address.clone(),
+                dest_contract_address: event.dest_dapp_address.clone(),
             };
 
             // Process proof request in a separate task

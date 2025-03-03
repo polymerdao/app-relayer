@@ -1,5 +1,4 @@
 use ethers::core::types::{Bytes, H256};
-use std::sync::Arc;
 
 // Re-export the config types
 pub use crate::config::ChainConfig;

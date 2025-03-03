@@ -1,3 +1,4 @@
+use crate::config::RelayPair;
 use crate::types::{ChainConfig, EventMeta, RelayEvent};
 use anyhow::anyhow;
 use anyhow::{Context, Result};
@@ -9,6 +10,7 @@ use ethers::{
     signers::{LocalWallet, Signer},
     utils::keccak256,
 };
+use std::collections::HashMap;
 use std::{str::FromStr, sync::Arc, time::Duration};
 use tokio::{sync::mpsc, time};
 use tracing::{debug, error, info, instrument};
@@ -34,6 +36,7 @@ impl EventGenerator {
             private_key,
             polling_interval,
             event_tx,
+            relay_pairs,
         }
     }
 
@@ -54,20 +57,27 @@ impl EventGenerator {
     #[instrument(skip(self))]
     async fn check_all_chains(&self) -> Result<()> {
         for relay_pair in &self.relay_pairs {
-            let source_chain = self.chains.get(&relay_pair.source_chain_id).ok_or_else(|| {
-                anyhow::anyhow!("Source chain {} not found in config", relay_pair.source_chain_id)
-            })?;
-            
+            let source_chain = self
+                .chains
+                .get(&relay_pair.source_chain_id)
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Source chain {} not found in config",
+                        relay_pair.source_chain_id
+                    )
+                })?;
+
             let dest_chain = self.chains.get(&relay_pair.dest_chain_id).ok_or_else(|| {
-                anyhow::anyhow!("Destination chain {} not found in config", relay_pair.dest_chain_id)
+                anyhow::anyhow!(
+                    "Destination chain {} not found in config",
+                    relay_pair.dest_chain_id
+                )
             })?;
 
-            match self.check_cross_chain_events(
-                source_chain, 
-                dest_chain,
-                &relay_pair.source_resolver_address,
-                &relay_pair.dest_dapp_address,
-            ).await {
+            match self
+                .check_cross_chain_events(source_chain, dest_chain, relay_pair)
+                .await
+            {
                 Ok(_) => {}
                 Err(e) => error!(
                     source_chain = %source_chain.name,
@@ -83,8 +93,9 @@ impl EventGenerator {
     #[instrument(skip(self), fields(source_chain = %source_chain.name, dest_chain = %dest_chain.name))]
     async fn check_cross_chain_events(
         &self,
-        source_chain: Arc<ChainConfig>,
-        dest_chain: Arc<ChainConfig>,
+        source_chain: &ChainConfig,
+        dest_chain: &ChainConfig,
+        relay_pair: &RelayPair,
     ) -> Result<()> {
         info!("Checking cross-chain events");
 
@@ -102,7 +113,7 @@ impl EventGenerator {
         let client = SignerMiddleware::new(client, wallet);
 
         // Create resolver contract interface
-        let resolver_address = Address::from_str(&source_chain.src_resolver_address)
+        let resolver_address = Address::from_str(&relay_pair.source_resolver_address)
             .context("Invalid resolver address")?;
 
         // Create ABI for the cross-chain resolver interface
@@ -133,11 +144,7 @@ impl EventGenerator {
 
             // Process the cross-chain event
             let tx_hash = self
-                .request_remote_execution(
-                    source_chain.clone(),
-                    dest_chain.clone(),
-                    dest_chain_id_u32,
-                )
+                .request_remote_execution(&source_chain, relay_pair)
                 .await?;
 
             // Extract event details and create the RelayEvent
@@ -148,6 +155,7 @@ impl EventGenerator {
                     dest_chain,
                     exec_payload,
                     nonce.as_u64(),
+                    relay_pair,
                 )
                 .await?;
 
@@ -166,10 +174,11 @@ impl EventGenerator {
     async fn extract_event_details(
         &self,
         tx_hash: H256,
-        source_chain: Arc<ChainConfig>,
-        destination_chain: Arc<ChainConfig>,
+        source_chain: &ChainConfig,
+        destination_chain: &ChainConfig,
         exec_payload: Bytes,
         nonce: u64,
+        relay_pair: &RelayPair,
     ) -> Result<RelayEvent> {
         // Get the transaction receipt to extract event details
         let provider = Provider::<Http>::try_from(&source_chain.rpc_url).context(format!(
@@ -188,7 +197,7 @@ impl EventGenerator {
             .find(|log| {
                 // Check if this log is from our source resolver address
                 let from_resolver = log.address
-                    == Address::from_str(&source_chain.src_resolver_address).unwrap_or_default();
+                    == Address::from_str(&relay_pair.source_resolver_address).unwrap_or_default();
 
                 // Check if the log has the CrossChainExecRequested event signature
                 // Event: CrossChainExecRequested(uint32 indexed destinationChainId, bytes execPayload, uint256 indexed nonce)
@@ -208,8 +217,10 @@ impl EventGenerator {
 
         // Create a relay event with actual transaction details
         let event = RelayEvent {
-            source_chain,
-            destination_chain,
+            source_chain: source_chain.clone(),
+            source_resolver_address: relay_pair.source_resolver_address.clone(),
+            destination_chain: destination_chain.clone(),
+            dest_dapp_address: relay_pair.dest_dapp_address.clone(),
             exec_payload,
             nonce,
             meta: EventMeta {
@@ -233,9 +244,8 @@ impl EventGenerator {
 
     async fn request_remote_execution(
         &self,
-        source_chain: Arc<ChainConfig>,
-        dest_chain: Arc<ChainConfig>,
-        dest_chain_id: u32,
+        source_chain: &ChainConfig,
+        relay_pair: &RelayPair,
     ) -> Result<H256> {
         info!("Requesting remote execution");
 
@@ -253,7 +263,7 @@ impl EventGenerator {
         let client = SignerMiddleware::new(client, wallet);
 
         // Create resolver contract interface
-        let resolver_address = Address::from_str(&source_chain.src_resolver_address)
+        let resolver_address = Address::from_str(&relay_pair.source_resolver_address)
             .context("Invalid resolver address")?;
 
         // Create ABI for the cross-chain resolver interface
@@ -265,7 +275,8 @@ impl EventGenerator {
 
         // Call requestRemoteExecution
         info!("Calling requestRemoteExecution on resolver");
-        let tx_req = resolver_contract.method::<_, ()>("requestRemoteExecution", dest_chain_id)?;
+        let tx_req = resolver_contract
+            .method::<_, ()>("requestRemoteExecution", relay_pair.dest_chain_id)?;
         let tx = tx_req.send().await?;
 
         let tx_hash = tx.tx_hash();
@@ -276,7 +287,7 @@ impl EventGenerator {
             .await?
             .ok_or_else(|| anyhow::anyhow!("Transaction receipt not found"))?;
 
-        info!("Transaction confirmed: {:?}", receipt);
+        info!(?receipt, "Transaction confirmed");
 
         Ok(tx_hash)
     }

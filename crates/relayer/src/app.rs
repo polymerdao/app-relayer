@@ -1,9 +1,9 @@
 use anyhow::Result;
-use std::{sync::Arc, time::Duration};
+use std::{time::Duration};
 use tokio::sync::mpsc;
 use tracing::{error, info, instrument};
 
-use crate::{ChainConfig, EventDeliverer, EventGenerator, ProofFetcher, RelayerConfig};
+use crate::{EventDeliverer, EventGenerator, ProofFetcher, RelayerConfig};
 
 pub struct RelayerApp {
     event_generator: Option<EventGenerator>,

@@ -1,8 +1,9 @@
 use anyhow::Result;
 use tracing::info;
+use std::collections::HashMap;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use relayer::{ChainConfig, RelayerApp, RelayerConfig};
+use relayer::{ChainConfig, RelayerApp, RelayerConfig, RelayPair};
 
 #[tokio::main]
 async fn main() -> Result<()> {

@@ -79,7 +79,7 @@ impl EventDeliverer {
 
         // Create transaction request
         let tx_request = TransactionRequest::new()
-            .to(Address::from_str(&delivery.event.destination_chain.dest_dapp_address)?)
+            .to(Address::from_str(&delivery.event.dest_dapp_address)?)
             .data(tx_data);
 
         // Send the transaction
