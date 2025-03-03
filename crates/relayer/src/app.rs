@@ -36,6 +36,7 @@ impl RelayerApp {
             event_rx,
             delivery_tx,
             "https://api.polymer.zone/v1/proofs".to_string(),
+            "your-api-token".to_string(), // TODO: Get this from config/env
         );
 
         let event_deliverer = EventDeliverer::new(private_key.to_string(), delivery_rx);

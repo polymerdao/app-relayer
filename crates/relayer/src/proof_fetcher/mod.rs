@@ -1,5 +1,6 @@
 mod client;
 
+use self::client::ProofApiClient;
 use crate::types::{DeliveryRequest, ProofRequest, RelayEvent};
 use anyhow::Result;
 use ethers::core::types::Bytes;
@@ -11,6 +12,7 @@ pub struct ProofFetcher {
     event_rx: mpsc::Receiver<RelayEvent>,
     delivery_tx: mpsc::Sender<DeliveryRequest>,
     polymer_api_url: String,
+    api_token: String,
 }
 
 impl ProofFetcher {
@@ -18,11 +20,13 @@ impl ProofFetcher {
         event_rx: mpsc::Receiver<RelayEvent>,
         delivery_tx: mpsc::Sender<DeliveryRequest>,
         polymer_api_url: String,
+        api_token: String,
     ) -> Self {
         Self {
             event_rx,
             delivery_tx,
             polymer_api_url,
+            api_token,
         }
     }
 
@@ -49,9 +53,10 @@ impl ProofFetcher {
             // Process proof request in a separate task
             let delivery_tx = self.delivery_tx.clone();
             let polymer_api_url = self.polymer_api_url.clone();
+            let api_token = self.api_token.clone();
 
             tokio::spawn(async move {
-                match Self::fetch_proof(proof_request.clone(), polymer_api_url).await {
+                match Self::fetch_proof(proof_request.clone(), polymer_api_url, api_token).await {
                     Ok(proof) => {
                         let delivery_request = DeliveryRequest {
                             event,
@@ -74,21 +79,40 @@ impl ProofFetcher {
         Ok(())
     }
 
-    #[instrument(skip(_polymer_api_url), fields(
+    #[instrument(skip(polymer_api_url, api_token), fields(
         source_chain_id = ?request.event.source_chain.chain_id,
         dest_chain_id = ?request.event.destination_chain.chain_id,
         tx_hash = ?request.tx_hash
     ))]
-    async fn fetch_proof(request: ProofRequest, _polymer_api_url: String) -> Result<Bytes> {
+    async fn fetch_proof(
+        request: ProofRequest, 
+        polymer_api_url: String, 
+        api_token: String
+    ) -> Result<Bytes> {
         info!("Fetching proof from Polymer API");
 
-        // In a real implementation, we would make an HTTP request to the Polymer API
-        // For now, we'll simulate a delay and return a dummy proof
-        time::sleep(Duration::from_secs(2)).await;
-
+        // Create the proof API client
+        let client = ProofApiClient::new(api_token, polymer_api_url);
+        
+        // Determine log index - in a real implementation, this would come from the event
+        // For now, we'll use 0 as a placeholder
+        let log_index = 0;
+        
+        // Get the transaction receipt to extract block number and tx index
+        // For now, we'll just use placeholder values
+        let block_number = 0; // This should come from transaction receipt
+        let tx_index = 0;     // This should come from transaction receipt
+        
+        // Request the proof from the Polymer API
+        let proof = client.fetch_proof(
+            request.destination_chain_id as u32,
+            block_number,
+            tx_index as u32,
+            log_index as u32,
+        ).await?;
+        
         info!("Proof fetched successfully");
-
-        // Return a dummy proof
-        Ok(Bytes::from(vec![0u8; 32]))
+        
+        Ok(proof)
     }
 }
