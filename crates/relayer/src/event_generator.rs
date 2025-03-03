@@ -3,6 +3,7 @@ use anyhow::{Context, Result};
 use ethers::{
     abi::{self},
     core::types::{Address, Bytes, H256, U256},
+    utils::keccak256,
     prelude::*,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
@@ -129,17 +130,43 @@ impl EventGenerator {
                 )
                 .await?;
 
-            // Create a relay event
+            // Get the transaction receipt to extract event details
+            let provider = Provider::<Http>::try_from(&source_chain.rpc_url)
+                .context(format!("Failed to create provider for {}", source_chain.name))?;
+            let tx_receipt = provider
+                .get_transaction_receipt(tx_hash)
+                .await?
+                .ok_or_else(|| anyhow::anyhow!("Transaction receipt not found"))?;
+
+            // Find the CrossChainExecRequested event in the logs
+            let cross_chain_event = tx_receipt
+                .logs
+                .iter()
+                .find(|log| {
+                    // Check if this log is from our source resolver address
+                    let from_resolver = log.address == Address::from_str(&source_chain.src_resolver_address).unwrap_or_default();
+                    
+                    // Check if the log has the CrossChainExecRequested event signature
+                    // Event: CrossChainExecRequested(uint32 indexed destinationChainId, bytes execPayload, uint256 indexed nonce)
+                    // Keccak256 hash of the event signature
+                    let event_signature = "CrossChainExecRequested(uint32,bytes,uint256)";
+                    let event_signature_hash = keccak256(event_signature.as_bytes());
+                    
+                    from_resolver && log.topics.get(0).map_or(false, |t| t.as_bytes() == &event_signature_hash[..])
+                })
+                .ok_or_else(|| anyhow::anyhow!("CrossChainExecRequested event not found in transaction"))?;
+
+            // Create a relay event with actual transaction details
             let event = RelayEvent {
                 source_chain,
                 destination_chain: dest_chain,
                 exec_payload,
                 nonce: nonce.as_u64(),
-                meta: EventMeta{
+                meta: EventMeta {
                     tx_hash: Some(tx_hash),
-                    block_number: 0,
-                    tx_index: 0,
-                    log_index: 0,
+                    block_number: tx_receipt.block_number.unwrap_or_default().as_u64(),
+                    tx_index: tx_receipt.transaction_index.unwrap_or_default().as_u32(),
+                    log_index: cross_chain_event.log_index.unwrap_or_default().as_u32(),
                 },
             };
 
