@@ -10,8 +10,16 @@ pub struct RelayEvent {
     pub source_chain: Arc<ChainConfig>,
     pub destination_chain: Arc<ChainConfig>,
     pub exec_payload: Bytes,
-    pub tx_hash: Option<H256>,
     pub nonce: u64,
+    pub meta: EventMeta,
+}
+
+#[derive(Debug, Clone)]
+pub struct EventMeta {
+    pub tx_hash: Option<H256>,
+    pub block_number: u64,
+    pub tx_index: u32,
+    pub log_index: u32,
 }
 
 // Proof request sent to the proof fetcher

@@ -1,4 +1,4 @@
-use crate::types::{ChainConfig, RelayEvent};
+use crate::types::{ChainConfig, EventMeta, RelayEvent};
 use anyhow::{Context, Result};
 use ethers::{
     abi::{self},
@@ -134,8 +134,13 @@ impl EventGenerator {
                 source_chain,
                 destination_chain: dest_chain,
                 exec_payload,
-                tx_hash: Some(tx_hash),
                 nonce: nonce.as_u64(),
+                meta: EventMeta{
+                    tx_hash: Some(tx_hash),
+                    block_number: 0,
+                    tx_index: 0,
+                    log_index: 0,
+                },
             };
 
             // Send the event to the proof fetcher

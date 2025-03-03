@@ -50,7 +50,7 @@ impl ProofApiClient {
 
     pub async fn fetch_proof(
         &self,
-        chain_id: u32,
+        chain_id: u64,
         block_number: u64,
         tx_index: u32,
         log_index: u32,
@@ -79,7 +79,7 @@ impl ProofApiClient {
     #[instrument(skip(self), fields(chain_id = chain_id, block_number = block_number, tx_index = tx_index, log_index = log_index))]
     async fn request_proof(
         &self,
-        chain_id: u32,
+        chain_id: u64,
         block_number: u64,
         tx_index: u32,
         log_index: u32,

@@ -4,8 +4,7 @@ use self::client::ProofApiClient;
 use crate::types::{DeliveryRequest, ProofRequest, RelayEvent};
 use anyhow::Result;
 use ethers::core::types::Bytes;
-use std::time::Duration;
-use tokio::{sync::mpsc, time};
+use tokio::{sync::mpsc};
 use tracing::{error, info, instrument};
 
 pub struct ProofFetcher {
@@ -35,7 +34,7 @@ impl ProofFetcher {
         info!("Starting proof fetcher");
 
         while let Some(event) = self.event_rx.recv().await {
-            let tx_hash = match event.tx_hash {
+            let tx_hash = match event.meta.tx_hash {
                 Some(hash) => hash,
                 None => {
                     error!("Event missing transaction hash");
@@ -94,21 +93,12 @@ impl ProofFetcher {
         // Create the proof API client
         let client = ProofApiClient::new(api_token, polymer_api_url);
         
-        // Determine log index - in a real implementation, this would come from the event
-        // For now, we'll use 0 as a placeholder
-        let log_index = 0;
-        
-        // Get the transaction receipt to extract block number and tx index
-        // For now, we'll just use placeholder values
-        let block_number = 0; // This should come from transaction receipt
-        let tx_index = 0;     // This should come from transaction receipt
-        
         // Request the proof from the Polymer API
         let proof = client.fetch_proof(
-            request.destination_chain_id as u32,
-            block_number,
-            tx_index as u32,
-            log_index as u32,
+            request.event.source_chain.chain_id,
+            request.event.meta.block_number,
+            request.event.meta.tx_index,
+            request.event.meta.log_index,
         ).await?;
         
         info!("Proof fetched successfully");
