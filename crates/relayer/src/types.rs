@@ -24,6 +24,8 @@ pub struct ProofRequest {
 // Delivery request sent to the event deliverer
 #[derive(Debug, Clone)]
 pub struct DeliveryRequest {
+    pub destination_chain_id: u64,
+    pub destination_contract_address: String,
     pub event: RelayEvent,
     pub proof: Bytes,
 }

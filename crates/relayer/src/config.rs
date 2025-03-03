@@ -6,8 +6,8 @@ pub struct ChainConfig {
     pub name: String,
     pub chain_id: u64,
     pub rpc_url: String,
-    pub resolver_address: String,
-    pub state_sync_address: String,
+    pub src_resolver_address: String,
+    pub dest_dapp_address: String,
 }
 
 #[derive(Debug, Serialize, Clone)]

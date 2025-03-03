@@ -1,7 +1,7 @@
 use crate::types::DeliveryRequest;
 use anyhow::{Context, Result};
 use ethers::{
-    abi::{self},
+    core::types::TransactionRequest,
     core::types::Address,
     prelude::*,
     providers::{Http, Provider},
@@ -10,6 +10,7 @@ use ethers::{
 use std::{str::FromStr, sync::Arc};
 use tokio::sync::mpsc;
 use tracing::{error, info, instrument};
+use ethers::utils::hex;
 
 pub struct EventDeliverer {
     private_key: String,
@@ -68,20 +69,21 @@ impl EventDeliverer {
             .with_chain_id(dest_chain.chain_id);
         let client = SignerMiddleware::new(client, wallet);
 
-        // Create target contract interface
-        let state_sync_address = Address::from_str(&dest_chain.state_sync_address)
-            .context("Invalid state sync address")?;
+        // Decode the execution payload to determine which function to call
+        let function_selector = &delivery.event.exec_payload[0..4];
+        info!("Using function selector: 0x{}", hex::encode(function_selector));
 
-        // Create ABI for the state sync contract
-        let state_sync_abi =
-            abi::parse_abi(&["function setValueFromSource(bytes calldata proof) external"])?;
-        let state_sync_contract =
-            Contract::new(state_sync_address, state_sync_abi, Arc::new(client));
+        // Create a transaction with the function selector and proof as parameters
+        let tx_data = [&delivery.event.exec_payload[..], delivery.proof.as_ref()].concat();
+        info!("Submitting transaction to destination chain");
 
-        // Submit proof to destination chain
-        info!("Submitting proof to destination chain");
-        let tx_req = state_sync_contract.method::<_, ()>("setValueFromSource", delivery.proof)?;
-        let tx = tx_req.send().await?;
+        // Create transaction request
+        let mut tx_request = TransactionRequest::new()
+            .to(Address::from_str(&delivery.event.destination_chain.dest_dapp_address)?)
+            .data(tx_data);
+
+        // Send the transaction
+        let tx = client.send_transaction(tx_request, None).await?;
 
         let tx_hash = tx.tx_hash();
         info!("Proof submission transaction sent: {:?}", tx_hash);

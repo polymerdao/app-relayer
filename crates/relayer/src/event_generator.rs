@@ -93,7 +93,7 @@ impl EventGenerator {
         let client = SignerMiddleware::new(client, wallet);
 
         // Create resolver contract interface
-        let resolver_address = Address::from_str(&source_chain.resolver_address)
+        let resolver_address = Address::from_str(&source_chain.src_resolver_address)
             .context("Invalid resolver address")?;
 
         // Create ABI for the cross-chain resolver interface
@@ -172,7 +172,7 @@ impl EventGenerator {
         let client = SignerMiddleware::new(client, wallet);
 
         // Create resolver contract interface
-        let resolver_address = Address::from_str(&source_chain.resolver_address)
+        let resolver_address = Address::from_str(&source_chain.src_resolver_address)
             .context("Invalid resolver address")?;
 
         // Create ABI for the cross-chain resolver interface
