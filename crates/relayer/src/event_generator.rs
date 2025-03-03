@@ -1,12 +1,13 @@
 use crate::types::{ChainConfig, EventMeta, RelayEvent};
+use anyhow::anyhow;
 use anyhow::{Context, Result};
 use ethers::{
     abi::{self},
     core::types::{Address, Bytes, H256, U256},
-    utils::keccak256,
     prelude::*,
     providers::{Http, Provider},
     signers::{LocalWallet, Signer},
+    utils::keccak256,
 };
 use std::{str::FromStr, sync::Arc, time::Duration};
 use tokio::{sync::mpsc, time};
@@ -118,7 +119,9 @@ impl EventGenerator {
         if can_exec {
             info!(
                 nonce = nonce.as_u64(),
-                "✅ Cross-chain execution needed from {} to {}", source_chain.name, dest_chain.name
+                source_chain = source_chain.name,
+                dest_chain = dest_chain.name,
+                "✅ Cross-chain execution needed"
             );
 
             // Process the cross-chain event
@@ -130,45 +133,16 @@ impl EventGenerator {
                 )
                 .await?;
 
-            // Get the transaction receipt to extract event details
-            let provider = Provider::<Http>::try_from(&source_chain.rpc_url)
-                .context(format!("Failed to create provider for {}", source_chain.name))?;
-            let tx_receipt = provider
-                .get_transaction_receipt(tx_hash)
-                .await?
-                .ok_or_else(|| anyhow::anyhow!("Transaction receipt not found"))?;
-
-            // Find the CrossChainExecRequested event in the logs
-            let cross_chain_event = tx_receipt
-                .logs
-                .iter()
-                .find(|log| {
-                    // Check if this log is from our source resolver address
-                    let from_resolver = log.address == Address::from_str(&source_chain.src_resolver_address).unwrap_or_default();
-                    
-                    // Check if the log has the CrossChainExecRequested event signature
-                    // Event: CrossChainExecRequested(uint32 indexed destinationChainId, bytes execPayload, uint256 indexed nonce)
-                    // Keccak256 hash of the event signature
-                    let event_signature = "CrossChainExecRequested(uint32,bytes,uint256)";
-                    let event_signature_hash = keccak256(event_signature.as_bytes());
-                    
-                    from_resolver && log.topics.get(0).map_or(false, |t| t.as_bytes() == &event_signature_hash[..])
-                })
-                .ok_or_else(|| anyhow::anyhow!("CrossChainExecRequested event not found in transaction"))?;
-
-            // Create a relay event with actual transaction details
-            let event = RelayEvent {
-                source_chain,
-                destination_chain: dest_chain,
-                exec_payload,
-                nonce: nonce.as_u64(),
-                meta: EventMeta {
-                    tx_hash: Some(tx_hash),
-                    block_number: tx_receipt.block_number.unwrap_or_default().as_u64(),
-                    tx_index: tx_receipt.transaction_index.unwrap_or_default().as_u32(),
-                    log_index: cross_chain_event.log_index.unwrap_or_default().as_u32(),
-                },
-            };
+            // Extract event details and create the RelayEvent
+            let event = self
+                .extract_event_details(
+                    tx_hash,
+                    source_chain,
+                    dest_chain,
+                    exec_payload,
+                    nonce.as_u64(),
+                )
+                .await?;
 
             // Send the event to the proof fetcher
             if let Err(e) = self.event_tx.send(event).await {
@@ -181,7 +155,75 @@ impl EventGenerator {
         Ok(())
     }
 
-    #[instrument(skip(self), fields(source_chain = %source_chain.name, dest_chain = %dest_chain.name))]
+    #[instrument(skip(self), fields(source_chain = %source_chain.name, dest_chain = %destination_chain.name))]
+    async fn extract_event_details(
+        &self,
+        tx_hash: H256,
+        source_chain: Arc<ChainConfig>,
+        destination_chain: Arc<ChainConfig>,
+        exec_payload: Bytes,
+        nonce: u64,
+    ) -> Result<RelayEvent> {
+        // Get the transaction receipt to extract event details
+        let provider = Provider::<Http>::try_from(&source_chain.rpc_url).context(format!(
+            "Failed to create provider for {}",
+            source_chain.name
+        ))?;
+        let tx_receipt = provider
+            .get_transaction_receipt(tx_hash)
+            .await?
+            .ok_or_else(|| anyhow::anyhow!("Transaction receipt not found"))?;
+
+        // Find the CrossChainExecRequested event in the logs
+        let cross_chain_event = tx_receipt
+            .logs
+            .iter()
+            .find(|log| {
+                // Check if this log is from our source resolver address
+                let from_resolver = log.address
+                    == Address::from_str(&source_chain.src_resolver_address).unwrap_or_default();
+
+                // Check if the log has the CrossChainExecRequested event signature
+                // Event: CrossChainExecRequested(uint32 indexed destinationChainId, bytes execPayload, uint256 indexed nonce)
+                // Keccak256 hash of the event signature
+                let event_signature = "CrossChainExecRequested(uint32,bytes,uint256)";
+                let event_signature_hash = keccak256(event_signature.as_bytes());
+
+                from_resolver
+                    && log
+                        .topics
+                        .get(0)
+                        .map_or(false, |t| t.as_bytes() == &event_signature_hash[..])
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!("CrossChainExecRequested event not found in transaction")
+            })?;
+
+        // Create a relay event with actual transaction details
+        let event = RelayEvent {
+            source_chain,
+            destination_chain,
+            exec_payload,
+            nonce,
+            meta: EventMeta {
+                tx_hash: Some(tx_hash),
+                block_number: tx_receipt
+                    .block_number
+                    .map(|n| n.as_u64())
+                    .ok_or(anyhow!("block_number not found from receipt"))?,
+                tx_index: tx_receipt.transaction_index.as_u32(),
+                log_index: cross_chain_event
+                    .log_index
+                    .map(|n| n.as_u32())
+                    .ok_or(anyhow!(
+                        "log_index not found from CrossChainExecRequested event"
+                    ))?,
+            },
+        };
+
+        Ok(event)
+    }
+
     async fn request_remote_execution(
         &self,
         source_chain: Arc<ChainConfig>,
@@ -216,8 +258,7 @@ impl EventGenerator {
 
         // Call requestRemoteExecution
         info!("Calling requestRemoteExecution on resolver");
-        let tx_req = resolver_contract
-            .method::<_, ()>("requestRemoteExecution", dest_chain_id)?;
+        let tx_req = resolver_contract.method::<_, ()>("requestRemoteExecution", dest_chain_id)?;
         let tx = tx_req.send().await?;
 
         let tx_hash = tx.tx_hash();
