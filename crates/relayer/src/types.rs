@@ -1,9 +1,8 @@
 use ethers::core::types::{Bytes, H256};
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
 // Re-export the config types
-pub use crate::config::{ChainConfig, RelayerConfig};
+pub use crate::config::ChainConfig;
 
 // Event detected by the event generator
 #[derive(Debug, Clone)]
@@ -33,17 +32,23 @@ pub struct DeliveryRequest {
 #[derive(Debug, thiserror::Error)]
 pub enum RelayerError {
     #[error("Failed to connect to RPC endpoint for chain {chain_id}: {source}")]
-    RpcConnection { chain_id: u64, source: anyhow::Error },
-    
+    RpcConnection {
+        chain_id: u64,
+        source: anyhow::Error,
+    },
+
     #[error("Transaction failed on chain {chain_id}: {source}")]
-    TransactionFailed { chain_id: u64, source: anyhow::Error },
-    
+    TransactionFailed {
+        chain_id: u64,
+        source: anyhow::Error,
+    },
+
     #[error("Proof verification failed: {0}")]
     ProofVerification(String),
-    
+
     #[error("Channel error: {0}")]
     ChannelError(String),
-    
+
     #[error("Resolver error: {0}")]
     ResolverError(String),
 }

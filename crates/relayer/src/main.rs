@@ -18,7 +18,7 @@ async fn main() -> Result<()> {
 
     // Load configuration
     let config = RelayerConfig {
-        polling_interval_ms: 60000,
+        polling_interval_ms: 10000,
         chains: vec![
             ChainConfig {
                 name: "Optimism Sepolia".to_string(),
@@ -41,6 +41,6 @@ async fn main() -> Result<()> {
     let private_key = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
     // Create and run the application
-    let app = RelayerApp::new(config, private_key);
+    let mut app = RelayerApp::new(config, private_key);
     app.run().await
 }

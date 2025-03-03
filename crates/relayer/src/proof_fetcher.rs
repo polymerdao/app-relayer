@@ -1,9 +1,9 @@
-use crate::types::{DeliveryRequest, ProofRequest, RelayEvent, RelayerError};
-use anyhow::{Context, Result};
-use ethers::core::types::{Bytes, H256};
+use crate::types::{DeliveryRequest, ProofRequest, RelayEvent};
+use anyhow::Result;
+use ethers::core::types::Bytes;
 use std::time::Duration;
 use tokio::{sync::mpsc, time};
-use tracing::{error, info, instrument, warn};
+use tracing::{error, info, instrument};
 
 pub struct ProofFetcher {
     event_rx: mpsc::Receiver<RelayEvent>,
@@ -25,12 +25,10 @@ impl ProofFetcher {
     }
 
     #[instrument(skip(self), name = "proof_fetcher_start")]
-    pub async fn start(&self) -> Result<()> {
+    pub async fn start(&mut self) -> Result<()> {
         info!("Starting proof fetcher");
 
-        let mut event_rx = self.event_rx.clone();
-
-        while let Some(event) = event_rx.recv().await {
+        while let Some(event) = self.event_rx.recv().await {
             let tx_hash = match event.tx_hash {
                 Some(hash) => hash,
                 None => {
@@ -67,12 +65,12 @@ impl ProofFetcher {
         Ok(())
     }
 
-    #[instrument(skip(polymer_api_url), fields(
+    #[instrument(skip(_polymer_api_url), fields(
         source_chain_id = ?request.event.source_chain.chain_id,
         dest_chain_id = ?request.event.destination_chain.chain_id,
         tx_hash = ?request.tx_hash
     ))]
-    async fn fetch_proof(request: ProofRequest, polymer_api_url: String) -> Result<Bytes> {
+    async fn fetch_proof(request: ProofRequest, _polymer_api_url: String) -> Result<Bytes> {
         info!("Fetching proof from Polymer API");
 
         // In a real implementation, we would make an HTTP request to the Polymer API
