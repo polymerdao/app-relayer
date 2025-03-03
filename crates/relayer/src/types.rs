@@ -7,8 +7,10 @@ pub use crate::config::ChainConfig;
 // Event detected by the event generator
 #[derive(Debug, Clone)]
 pub struct RelayEvent {
-    pub source_chain: Arc<ChainConfig>,
-    pub destination_chain: Arc<ChainConfig>,
+    pub source_chain: ChainConfig,
+    pub source_resolver_address: String,
+    pub destination_chain: ChainConfig,
+    pub dest_dapp_address: String,
     pub exec_payload: Bytes,
     pub nonce: u64,
     pub meta: EventMeta,

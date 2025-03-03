@@ -19,19 +19,31 @@ async fn main() -> Result<()> {
     // Load configuration
     let config = RelayerConfig {
         polling_interval_ms: 10000,
-        chains: vec![
-            ChainConfig {
+        chains: {
+            let mut chains = HashMap::new();
+            chains.insert(11155420, ChainConfig {
                 name: "Optimism Sepolia".to_string(),
                 chain_id: 11155420,
                 rpc_url: "https://optimism-sepolia.example.com".to_string(),
-                src_resolver_address: "0x1234567890123456789012345678901234567890".to_string(),
-                dest_dapp_address: "0x0987654321098765432109876543210987654321".to_string(),
-            },
-            ChainConfig {
+            });
+            chains.insert(84532, ChainConfig {
                 name: "Base Sepolia".to_string(),
                 chain_id: 84532,
                 rpc_url: "https://base-sepolia.example.com".to_string(),
-                src_resolver_address: "0x2345678901234567890123456789012345678901".to_string(),
+            });
+            chains
+        },
+        relay_pairs: vec![
+            RelayPair {
+                source_chain_id: 11155420,
+                source_resolver_address: "0x1234567890123456789012345678901234567890".to_string(),
+                dest_chain_id: 84532,
+                dest_dapp_address: "0x0987654321098765432109876543210987654321".to_string(),
+            },
+            RelayPair {
+                source_chain_id: 84532,
+                source_resolver_address: "0x2345678901234567890123456789012345678901".to_string(),
+                dest_chain_id: 11155420,
                 dest_dapp_address: "0x9876543210987654321098765432109876543210".to_string(),
             },
         ],

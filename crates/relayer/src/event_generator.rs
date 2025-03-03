@@ -14,7 +14,8 @@ use tokio::{sync::mpsc, time};
 use tracing::{debug, error, info, instrument};
 
 pub struct EventGenerator {
-    chains: Vec<Arc<ChainConfig>>,
+    chains: HashMap<u64, ChainConfig>,
+    relay_pairs: Vec<RelayPair>,
     private_key: String,
     polling_interval: Duration,
     event_tx: mpsc::Sender<RelayEvent>,
@@ -22,7 +23,8 @@ pub struct EventGenerator {
 
 impl EventGenerator {
     pub fn new(
-        chains: Vec<Arc<ChainConfig>>,
+        chains: HashMap<u64, ChainConfig>,
+        relay_pairs: Vec<RelayPair>,
         private_key: String,
         polling_interval: Duration,
         event_tx: mpsc::Sender<RelayEvent>,
@@ -51,23 +53,28 @@ impl EventGenerator {
 
     #[instrument(skip(self))]
     async fn check_all_chains(&self) -> Result<()> {
-        for source_chain in &self.chains {
-            // Check for cross-chain events for each destination chain
-            for dest_chain in &self.chains {
-                if source_chain.chain_id != dest_chain.chain_id {
-                    match self
-                        .check_cross_chain_events(source_chain.clone(), dest_chain.clone())
-                        .await
-                    {
-                        Ok(_) => {}
-                        Err(e) => error!(
-                            source_chain = %source_chain.name,
-                            dest_chain = %dest_chain.name,
-                            error = %e,
-                            "Error checking cross-chain events"
-                        ),
-                    }
-                }
+        for relay_pair in &self.relay_pairs {
+            let source_chain = self.chains.get(&relay_pair.source_chain_id).ok_or_else(|| {
+                anyhow::anyhow!("Source chain {} not found in config", relay_pair.source_chain_id)
+            })?;
+            
+            let dest_chain = self.chains.get(&relay_pair.dest_chain_id).ok_or_else(|| {
+                anyhow::anyhow!("Destination chain {} not found in config", relay_pair.dest_chain_id)
+            })?;
+
+            match self.check_cross_chain_events(
+                source_chain, 
+                dest_chain,
+                &relay_pair.source_resolver_address,
+                &relay_pair.dest_dapp_address,
+            ).await {
+                Ok(_) => {}
+                Err(e) => error!(
+                    source_chain = %source_chain.name,
+                    dest_chain = %dest_chain.name,
+                    error = %e,
+                    "Error checking cross-chain events"
+                ),
             }
         }
         Ok(())

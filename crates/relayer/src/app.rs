@@ -16,17 +16,14 @@ impl RelayerApp {
     pub fn new(config: RelayerConfig, private_key: &str) -> Self {
         info!("Initializing relayer application");
 
-        // Convert chains to Arc for sharing
-        let chains: Vec<Arc<ChainConfig>> =
-            config.chains.iter().map(|c| Arc::new(c.clone())).collect();
-
         // Create channels for communication between components
         let (event_tx, event_rx) = mpsc::channel(100);
         let (delivery_tx, delivery_rx) = mpsc::channel(100);
 
         // Create components
         let event_generator = EventGenerator::new(
-            chains.clone(),
+            config.chains,
+            config.relay_pairs,
             private_key.to_string(),
             Duration::from_millis(config.polling_interval_ms),
             event_tx,
