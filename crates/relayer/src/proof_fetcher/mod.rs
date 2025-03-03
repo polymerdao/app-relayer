@@ -1,3 +1,5 @@
+mod client;
+
 use crate::types::{DeliveryRequest, ProofRequest, RelayEvent};
 use anyhow::Result;
 use ethers::core::types::Bytes;
