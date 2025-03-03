@@ -40,6 +40,8 @@ impl ProofFetcher {
             let proof_request = ProofRequest {
                 event: event.clone(),
                 tx_hash,
+                destination_chain_id: event.destination_chain.chain_id,
+                dest_contract_address: event.destination_chain.dest_dapp_address.clone(),
             };
 
             // Process proof request in a separate task
@@ -47,9 +49,14 @@ impl ProofFetcher {
             let polymer_api_url = self.polymer_api_url.clone();
 
             tokio::spawn(async move {
-                match Self::fetch_proof(proof_request, polymer_api_url).await {
+                match Self::fetch_proof(proof_request.clone(), polymer_api_url).await {
                     Ok(proof) => {
-                        let delivery_request = DeliveryRequest { event, proof };
+                        let delivery_request = DeliveryRequest {
+                            event,
+                            proof,
+                            destination_chain_id: proof_request.destination_chain_id,
+                            destination_contract_address: proof_request.dest_contract_address,
+                        };
 
                         if let Err(e) = delivery_tx.send(delivery_request).await {
                             error!(error = %e, "Failed to send delivery request");

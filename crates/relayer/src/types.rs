@@ -19,6 +19,8 @@ pub struct RelayEvent {
 pub struct ProofRequest {
     pub event: RelayEvent,
     pub tx_hash: H256,
+    pub destination_chain_id: u64,
+    pub dest_contract_address: String,
 }
 
 // Delivery request sent to the event deliverer

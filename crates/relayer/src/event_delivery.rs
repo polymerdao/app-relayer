@@ -54,7 +54,7 @@ impl EventDeliverer {
         nonce = delivery.event.nonce
     ))]
     async fn deliver_event(delivery: DeliveryRequest, private_key: String) -> Result<()> {
-        let dest_chain = delivery.event.destination_chain;
+        let dest_chain = delivery.event.destination_chain.clone();
 
         info!("Delivering event to destination chain");
 
@@ -78,7 +78,7 @@ impl EventDeliverer {
         info!("Submitting transaction to destination chain");
 
         // Create transaction request
-        let mut tx_request = TransactionRequest::new()
+        let tx_request = TransactionRequest::new()
             .to(Address::from_str(&delivery.event.destination_chain.dest_dapp_address)?)
             .data(tx_data);
 
