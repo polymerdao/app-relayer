@@ -5,20 +5,36 @@ import "forge-std/Test.sol";
 import "forge-std/console.sol";
 import "../src/BatchedStateSync.sol";
 import "../src/IResolver.sol";
+import "../lib/prover-contracts/contracts/interfaces/ICrossL2ProverV2.sol";
 
-// Mock Polymer Prover for testing
-contract MockPolymerProver {
-    function validateEvent(
-        bytes calldata proof
-    ) external pure returns (
+contract MockPolymerProver is ICrossL2ProverV2 {
+    function validateEvent(bytes calldata proof) external pure override returns (
         uint32 chainId,
         address emittingContract,
         bytes memory topics,
         bytes memory data
     ) {
-        // Decode the mockProof which should contain all the values we want to return
-        (chainId, emittingContract, topics, data) = abi.decode(proof, (uint32, address, bytes, bytes));
-        return (chainId, emittingContract, topics, data);
+        return abi.decode(proof, (uint32, address, bytes, bytes));
+    }
+
+    function inspectLogIdentifier(bytes calldata proof) 
+        external 
+        pure 
+        override
+        returns (uint32 srcChain, uint64 blockNumber, uint16 receiptIndex, uint8 logIndex) 
+    {
+        // Default mock implementation
+        return (1, 1, 1, 1);
+    }
+    
+    function inspectPolymerState(bytes calldata proof) 
+        external 
+        pure 
+        override
+        returns (bytes32 stateRoot, uint64 height, bytes memory signature) 
+    {
+        // Default mock implementation
+        return (bytes32(0), 1, bytes(""));
     }
 }
 

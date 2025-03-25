@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 pragma solidity ^0.8.0;
 
-import "./ICrossL2ProverV2.sol";
+import "@prover/interfaces/ICrossL2ProverV2.sol";
+import "forge-std/console.sol";
 
 /**
  * @title CrossChainExecutor
@@ -34,7 +35,7 @@ abstract contract CrossChainExecutor {
     );
     
     // Event signature for CrossChainExecRequested
-    bytes32 private constant CROSS_CHAIN_EXEC_REQUESTED_SIG = 
+    bytes32 public constant CROSS_CHAIN_EXEC_REQUESTED_SIG = 
         keccak256("CrossChainExecRequested(uint32,bytes,uint256)");
     
     /**
@@ -62,34 +63,37 @@ abstract contract CrossChainExecutor {
             uint32 sourceChainId,
             address sourceContract,
             bytes memory topics,
-            bytes memory unindexedData
+            bytes memory execPayload
         ) = prover.validateEvent(proof);
-        
-        // Verify this is a CrossChainExecRequested event
-        bytes32 eventSig = abi.decode(topics, (bytes32));
-        require(eventSig == CROSS_CHAIN_EXEC_REQUESTED_SIG, "Invalid event signature");
-        
+
         // Decode the event data
         // Topics format: [eventSig, destinationChainId, nonce]
-        bytes memory topicsData = topics;
+        bytes32[] memory topicsArray = new bytes32[](3);
+        require(topics.length >= 96, "Invalid topics length");
+
         assembly {
-            // Skip the first 32 bytes (event signature)
-            topicsData := add(topicsData, 32)
+            let topicsPtr := add(topics, 32)  // Skip length prefix
+            for { let i := 0 } lt(i, 3) { i := add(i, 1) } {
+                mstore(
+                       add(add(topicsArray, 32), mul(i, 32)),
+                       mload(add(topicsPtr, mul(i, 32)))
+                )
+            }
         }
-        
-        // Parse indexed parameters
-        (uint32 destinationChainId, uint256 nonce) = abi.decode(topicsData, (uint32, uint256));
-        
-        // Parse unindexed parameters
-        bytes memory execPayload = abi.decode(unindexedData, (bytes));
-        
+
+        // Verify this is a CrossChainExecRequested event
+        bytes32 eventSig = topicsArray[0]; 
+        require(eventSig == CROSS_CHAIN_EXEC_REQUESTED_SIG, "Invalid event signature");
+
         // Verify destination chain matches current chain
+        uint32 destinationChainId = uint32(uint256(topicsArray[1]));
         require(destinationChainId == getChainId(), "Invalid destination chain");
-        
+
         // Prevent replay attacks
+        uint256 nonce = uint256(topicsArray[2]);
         require(!usedNonces[sourceChainId][sourceContract][nonce], "Nonce already used");
         usedNonces[sourceChainId][sourceContract][nonce] = true;
-        
+
         // Extract function selector and parameters
         bytes4 selector;
         assembly {
@@ -107,7 +111,6 @@ abstract contract CrossChainExecutor {
             selector,
             success
         );
-        
         return (success, result);
     }
     
