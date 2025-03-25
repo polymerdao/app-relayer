@@ -23,6 +23,19 @@ interface ICrossChainResolver {
 }
 ```
 
+### CrossChainExecutor Contract
+
+```solidity
+abstract contract CrossChainExecutor {
+    // Executes a function call from a cross-chain request
+    function executeWithProof(bytes calldata proof) 
+        external 
+        returns (bool success, bytes memory result);
+        
+    // Other functions and state variables...
+}
+```
+
 ## How It Works
 
 1. **Check Condition**: A relayer calls `crossChainChecker()` on the source chain, specifying the destination chain ID.
@@ -33,10 +46,24 @@ interface ICrossChainResolver {
 
 3. **Generate Proof**: The relayer captures the event and creates a cryptographic proof using Polymer.
 
-4. **Execute on Destination**: The relayer submits this proof to the destination chain, which:
+4. **Execute on Destination**: The relayer submits this proof to the destination chain's executor contract, which:
    - Verifies the proof is valid and from the correct source
    - Ensures the proof hasn't been used before (replay protection)
    - Executes the requested function with the provided payload
+
+## Implementation Requirements
+
+1. **Source Chain**: Implement the `ICrossChainResolver` interface on the source chain contract.
+
+2. **Destination Chain**: Contracts that want to receive cross-chain executions **must** inherit from the `CrossChainExecutor` abstract contract.
+
+3. **Proof Verification**: The destination contract uses Polymer's `ICrossL2ProverV2` interface to validate proofs.
+
+4. **Execution Flow**:
+   - The source contract emits a standardized event
+   - The relayer captures this event and generates a proof
+   - The relayer calls `executeWithProof()` on the destination contract
+   - The executor validates the proof and calls the requested function on itself
 
 ## Benefits
 
