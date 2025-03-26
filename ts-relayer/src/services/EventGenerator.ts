@@ -40,7 +40,7 @@ export class EventGenerator {
       try {
         await this.checkAllChains();
       } catch (error) {
-        logger.error({ error }, 'Error checking chains');
+        logger.error('Error checking chains', { error });
       }
       
       // Wait for the polling interval
@@ -71,11 +71,11 @@ export class EventGenerator {
       try {
         await this.checkCrossChainEvents(sourceChain, destChain, relayPair);
       } catch (error) {
-        logger.error({
+        logger.error('Error checking cross-chain events', {
           sourceChain: sourceChain.name,
           destChain: destChain.name,
           error
-        }, 'Error checking cross-chain events');
+        });
       }
     }
   }
@@ -85,10 +85,10 @@ export class EventGenerator {
     destChain: ChainConfig,
     relayPair: RelayPair
   ): Promise<void> {
-    logger.info({
+    logger.info('Checking cross-chain events', {
       sourceChain: sourceChain.name,
       destChain: destChain.name
-    }, 'Checking cross-chain events');
+    });
 
     // Connect to provider
     const provider = new ethers.providers.JsonRpcProvider(sourceChain.rpcUrl);
@@ -107,11 +107,11 @@ export class EventGenerator {
     const [canExec, execPayload, nonce] = await resolverContract.crossChainChecker(destChainIdU32);
 
     if (canExec) {
-      logger.info({
+      logger.info('✅ Cross-chain execution needed', {
         nonce: nonce.toString(),
         sourceChain: sourceChain.name,
         destChain: destChain.name
-      }, '✅ Cross-chain execution needed');
+      });
 
       // Process the cross-chain event
       const txHash = await this.requestRemoteExecution(sourceChain, destChain, relayPair);
@@ -154,14 +154,14 @@ export class EventGenerator {
     logger.info('Calling requestRemoteExecution on resolver');
     const tx = await resolverContract.requestRemoteExecution(destChain.chainId);
 
-    logger.info({ txHash: tx.hash }, 'Transaction sent');
+    logger.info('Transaction sent', { txHash: tx.hash });
 
     // Wait for transaction to be mined
     const receipt = await tx.wait();
-    logger.info({ 
+    logger.info('Transaction confirmed', { 
       txHash: receipt.transactionHash,
       blockNumber: receipt.blockNumber
-    }, 'Transaction confirmed');
+    });
 
     return receipt.transactionHash;
   }

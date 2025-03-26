@@ -3,13 +3,14 @@ pragma solidity ^0.8.0;
 
 import "./StateSyncV2.sol";
 import "./IResolver.sol";
+import "./CrossChainExecutor.sol";
 
 /**
  * @title BatchedStateSync
  * @dev Extends StateSyncV2 to support batched state synchronization using the resolver interface
  * for more efficient cross-chain state updates
  */
-contract BatchedStateSync is StateSyncV2, ICrossChainResolver {
+contract BatchedStateSync is StateSyncV2, ICrossChainResolver, CrossChainExecutor {
     // Configuration for batching
     uint256 public batchThreshold;
     
@@ -34,16 +35,14 @@ contract BatchedStateSync is StateSyncV2, ICrossChainResolver {
     // Event for tracking when batches are dispatched
     event BatchDispatched(uint256 batchSize);
 
-    // Event for tracking when cross-chain execution is received
-    event CrossChainBatchReceived(uint32 sourceChainId, address sourceContract, uint256 nonce);
-    
     /**
      * @dev Constructor to initialize the BatchedStateSync contract
      * @param _polymerProver Address of the Polymer prover contract
      * @param _batchThreshold Number of updates required before a batch is ready
      */
     constructor(address _polymerProver, uint256 _batchThreshold) 
-        StateSyncV2(_polymerProver) 
+        StateSyncV2(_polymerProver)
+        CrossChainExecutor(_polymerProver)
     {
         batchThreshold = _batchThreshold;
         pendingUpdates = 0;
@@ -91,9 +90,7 @@ contract BatchedStateSync is StateSyncV2, ICrossChainResolver {
         returns (bool canExec, bytes memory execPayload, uint256 nonce) 
     {
         if (pendingUpdates >= batchThreshold) {
-            execPayload = abi.encodeWithSelector(
-                this.processBatch.selector
-            );
+            execPayload = abi.encodeWithSelector(this.receiveBatch.selector, pendingUpdateQueue);
             
             nonce = crossChainNonce + 1;
             return (true, execPayload, nonce);
@@ -113,13 +110,10 @@ contract BatchedStateSync is StateSyncV2, ICrossChainResolver {
         // Increment nonce
         crossChainNonce++;
         
-        // Pack the pending updates into the CrossChainExecRequested event data
-        bytes memory batchData = abi.encode(pendingUpdateQueue);
-        
         // Emit event for the relayer to pick up
         emit CrossChainExecRequested(
             destinationChainId,
-            batchData,
+            abi.encodeWithSelector(this.receiveBatch.selector, pendingUpdateQueue),
             nonce
         );
         
@@ -134,90 +128,22 @@ contract BatchedStateSync is StateSyncV2, ICrossChainResolver {
     }   
 
     /**
-     * @dev Process a cross-chain batch request
-     * @param proof The Polymer proof of the cross-chain request
+     * @dev Process a batch of state updates
+     * @param updates Array of PendingUpdate structs containing the batched state changes
      */
-    function processBatch(bytes calldata proof) external {
-        // Validate the cross-chain proof
-        (
-            uint32 sourceChainId,
-            address sourceContract,
-            bytes memory topics,
-            bytes memory data
-        ) = polymerProver.validateEvent(proof);
-        
-        // Verify this is a CrossChainExecRequested event
-        bytes32 expectedSelector = keccak256("CrossChainExecRequested(uint32,bytes,uint256)");
-        require(extractEventSelector(topics) == expectedSelector, "Invalid event");
-        
-        // Verify this chain is the target
-        uint32 targetChainId = extractDestinationChainId(topics);
-        require(targetChainId == block.chainid, "Wrong destination chain");
-        
-        // Extract nonce and verify proof hasn't been used
-        uint256 eventNonce = extractNonce(topics);
-        bytes32 proofHash = keccak256(
-            abi.encodePacked(sourceChainId, sourceContract, eventNonce)
-        );
-        
-        require(!usedProofHashes[proofHash], "Proof already used");
-        usedProofHashes[proofHash] = true;
-        
-        // Decode the data field which should contain the batch updates
-        (PendingUpdate[] memory updates) = abi.decode(data, (PendingUpdate[]));
-        
+    function receiveBatch(PendingUpdate[] memory updates) public {
         // Process each update in the batch
         for (uint256 i = 0; i < updates.length; i++) {
             PendingUpdate memory update = updates[i];
             
             // Apply each state update using StateSyncV2's functionality
-            // We need to use the low-level call since we're working with hashedKeys
-            bytes memory storeValue = update.value;
-            store[update.hashedKey] = storeValue;
+            store[update.hashedKey] = update.value;
             keyVersions[update.hashedKey] = update.version;
             
             // Emit update event
             emit ValueUpdated(update.hashedKey, update.value, update.version);
         }
-        
-        emit CrossChainBatchReceived(sourceChainId, sourceContract, eventNonce);
-    }   
-
-    /**
-     * @dev Helper function to extract event selector from topics
-     */
-    function extractEventSelector(bytes memory topics) private pure returns (bytes32) {
-        require(topics.length >= 32, "Invalid topics length");
-        bytes32 selector;
-        assembly {
-            selector := mload(add(topics, 32))
-        }
-        return selector;
     }
-    
-    /**
-     * @dev Helper function to extract destination chain ID from topics
-     */
-    function extractDestinationChainId(bytes memory topics) private pure returns (uint32) {
-        require(topics.length >= 64, "Invalid topics length");
-        bytes32 topicValue;
-        assembly {
-            topicValue := mload(add(topics, 64))
-        }
-        return uint32(uint256(topicValue));
-    }
-    
-    /**
-     * @dev Helper function to extract nonce from topics
-     */
-    function extractNonce(bytes memory topics) private pure returns (uint256) {
-        require(topics.length >= 96, "Invalid topics length");
-        bytes32 topicValue;
-        assembly {
-            topicValue := mload(add(topics, 96))
-        }
-        return uint256(topicValue);
-    }   
 
     /**
      * @dev Update the batch threshold
@@ -236,12 +162,4 @@ contract BatchedStateSync is StateSyncV2, ICrossChainResolver {
         return pendingUpdateQueue;
     }
 
-    /**
-     * @dev Public accessor function for the usedProofHashes mapping
-     * @param proofHash The hash to check
-     * @return Whether the proof hash has been used
-     */
-    function isProofUsed(bytes32 proofHash) public view returns (bool) {
-        return usedProofHashes[proofHash];
-    }
 }

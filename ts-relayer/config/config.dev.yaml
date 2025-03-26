@@ -1,0 +1,22 @@
+pollingIntervalMs: 10000
+
+# Chain configurations
+chains:
+  - name: "Chain A"
+    chainId: 901
+    rpcUrl: "http://localhost:8553"
+  - name: "Chain B"
+    chainId: 902
+    rpcUrl: "http://localhost:8554"
+
+# Relay pairs to monitor
+relayPairs:
+  - sourceChainId: 901
+    sourceResolverAddress: "0x75364ec12D31Cc678dfCFDFc25FF264aC863211A"
+    destChainId: 902
+    destDappAddress: "0x75364ec12D31Cc678dfCFDFc25FF264aC863211A"
+
+# Polymer API configuration
+polymerApi:
+  endpoint: "http://localhost:8000/"
+  token: ""

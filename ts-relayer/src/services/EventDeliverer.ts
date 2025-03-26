@@ -2,6 +2,10 @@ import { ethers } from 'ethers';
 import { DeliveryRequest } from '../types';
 import { logger } from '../utils/logger';
 
+const EXECUTOR_ABI = [
+  'function executeWithProof(bytes calldata proof) external returns (bool success, bytes memory result)'
+];
+
 export class EventDeliverer {
   private isProcessing: boolean = false;
   private deliveryQueue: DeliveryRequest[] = [];
@@ -54,27 +58,24 @@ export class EventDeliverer {
       const functionSelector = request.event.execPayload.slice(0, 10); // "0x" + 8 chars
       logger.info(`Using function selector: ${functionSelector}`);
 
-      // Create transaction data by concatenating execPayload and proof
-      const proof = request.proof;
-      const execPayload = request.event.execPayload;
-      let txData: string;
 
-      // Check if proof is already prefixed with 0x
-      if (proof.startsWith('0x')) {
-        txData = execPayload + proof.slice(2);
-      } else {
-        txData = execPayload + proof;
-      }
-
-      // Create contract instance with the destination address
+      // Get the destination contract address
       const destAddress = ethers.utils.getAddress(request.destinationContractAddress);
-      
-      // Send the transaction
-      logger.info('Submitting transaction to destination chain');
-      const tx = await wallet.sendTransaction({
-        to: destAddress,
-        data: txData,
-        gasLimit: 500000, // Set an appropriate gas limit
+
+      // Create contract instance for the CrossChainExecutor
+      const executorContract = new ethers.Contract(destAddress, EXECUTOR_ABI, wallet);
+
+      // Get the proof
+      const proof = request.proof;
+
+      logger.info('Calling executeWithProof on destination contract', {
+        destAddress: destAddress,
+        proofLength: proof.length
+      });
+
+      // Call the executeWithProof function with the proof
+      const tx = await executorContract.executeWithProof(proof, {
+          gasLimit: 500000, // Set an appropriate gas limit
       });
 
       logger.info(`Proof submission transaction sent: ${tx.hash}`);
@@ -96,10 +97,15 @@ export class EventDeliverer {
 
       // Re-queue the request if it was a temporary failure
       // In a production system, you might want to implement a backoff strategy
-      if (error instanceof Error && 
-          !error.message.includes('nonce too low') && 
-          !error.message.includes('already known')) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (error instanceof Error &&
+          !errorMessage.includes('nonce too low') &&
+          !errorMessage.includes('already known') &&
+          !errorMessage.includes('RLP') &&
+          !errorMessage.includes('INVALID_ARGUMENT')) {
         this.deliveryQueue.unshift(request);
+      } else if (errorMessage.includes('RLP') || errorMessage.includes('INVALID_ARGUMENT')) {
+         logger.error("RLP or INVALID_ARGUMENT error detected. Transaction data might be malformed. Not retrying automatically.");
       }
     } finally {
       // Process next event

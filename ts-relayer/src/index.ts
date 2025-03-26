@@ -21,11 +21,11 @@ async function main() {
 
     // Load and validate configuration
     const config = getConfig();
-    logger.info({
+    logger.info('Configuration loaded', {
       chains: Object.keys(config.chains).length,
       relayPairs: config.relayPairs.length,
       pollingIntervalMs: config.pollingIntervalMs
-    }, 'Configuration loaded');
+    });
 
     // Create and start the relayer application
     const app = new RelayerApp(config, privateKey);
@@ -53,7 +53,7 @@ function setupShutdownHandlers(app: RelayerApp) {
   // Handle termination signals
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
-  process.on('uncaughtException', (error) => {
+  process.on('uncaughtException', (error: Error) => {
     logger.error(`Uncaught exception: ${error.message}`, { stack: error.stack });
     shutdown();
   });
