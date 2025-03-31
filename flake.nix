@@ -28,6 +28,7 @@
             nodejs
             nodePackages.pnpm
             nodePackages.yarn
+            nodePackages.ts-node
             solc
           ];
 

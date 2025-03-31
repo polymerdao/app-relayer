@@ -100,11 +100,11 @@ contract BatchedStateSyncTest is Test {
         console.log("After threshold - canExec:", canExec, "nonce:", nonce);
         assertTrue(canExec, "Should be ready to execute after threshold reached");
         
-        // Verify the execPayload is correctly formatted (contains the processBatch selector)
+        // Verify the execPayload is correctly formatted (contains the receiveBatch selector)
         bytes4 selector = bytes4(execPayload);
         console.logBytes4(selector);
-        console.logBytes4(batchedSync.processBatch.selector);
-        assertEq(selector, batchedSync.processBatch.selector, "Exec payload should contain processBatch selector");
+        console.logBytes4(batchedSync.receiveBatch.selector);
+        assertEq(selector, batchedSync.receiveBatch.selector, "Exec payload should contain receiveBatch selector");
         
         // Verify nonce is correct (should be 1 for first execution)
         assertEq(nonce, 1, "Nonce should be 1 for first execution");
@@ -117,9 +117,13 @@ contract BatchedStateSyncTest is Test {
         batchedSync.setBatchedValue("key2", "value2");
         batchedSync.setBatchedValue("key3", "value3");
         
+        // Get pending updates *before* calling requestRemoteExecution to compare emitted payload
+        BatchedStateSync.PendingUpdate[] memory updatesBefore = batchedSync.getPendingUpdates();
+        bytes memory expectedPayload = abi.encodeWithSelector(batchedSync.receiveBatch.selector, updatesBefore);
+
         // Call requestRemoteExecution and capture the event
-        vm.expectEmit(true, false, true, false);
-        emit ICrossChainResolver.CrossChainExecRequested(DEST_CHAIN_ID, bytes(""), 1);
+        vm.expectEmit(true, true, false, true); // Check destChainId (topic1), nonce (topic2), and payload (data)
+        emit ICrossChainResolver.CrossChainExecRequested(DEST_CHAIN_ID, expectedPayload, 1);
         batchedSync.requestRemoteExecution(DEST_CHAIN_ID);
         
         // Verify pending queue is cleared
@@ -132,8 +136,8 @@ contract BatchedStateSyncTest is Test {
         assertFalse(batchedSync.isPending(hashedKey1), "Key1 should not be pending anymore");
     }
     
-    // Test processBatch with mock proof
-    function testProcessBatch() public {
+    // Test executeWithProof and receiveBatch with mock proof
+    function testExecuteWithProofAndReceiveBatch() public {
         // Create a source contract address
         address sourceContract = address(0x1234);
         
@@ -154,31 +158,33 @@ contract BatchedStateSyncTest is Test {
             version: 1
         });
         
-        // Event topics for CrossChainExecRequested
-        bytes32 eventSelector = keccak256("CrossChainExecRequested(uint32,bytes,uint256)");
+        // Define nonce for this execution
+        uint256 nonce = 1;
+
+        // Prepare data for executeWithProof
+        // 1. Calculate execPayload for the receiveBatch function
+        bytes memory execPayload = abi.encodeWithSelector(batchedSync.receiveBatch.selector, mockUpdates);
+
+        // 2. Prepare topics for CrossChainExecRequested event
+        bytes32 eventSelector = batchedSync.CROSS_CHAIN_EXEC_REQUESTED_SIG(); // Inherited from CrossChainExecutor
         bytes32 destChainIdTopic = bytes32(uint256(DEST_CHAIN_ID));
-        bytes32 nonceTopic = bytes32(uint256(1));
-        
-        // Create packed topics bytes (3 topics, each 32 bytes)
+        bytes32 nonceTopic = bytes32(nonce);
         bytes memory topics = abi.encodePacked(eventSelector, destChainIdTopic, nonceTopic);
-        
-        // Encode the batch data
-        bytes memory batchData = abi.encode(mockUpdates);
-        
-        // Create mock proof by encoding the parameters that MockPolymerProver will return
+
+        // 3. Create mock proof by encoding the parameters MockPolymerProver.validateEvent will return
         bytes memory mockProof = abi.encode(
             SOURCE_CHAIN_ID,    // Source chain ID
             sourceContract,     // Source contract
             topics,             // Event topics
-            batchData           // Event data containing batch updates
+            execPayload         // Encoded call to receiveBatch
         );
         
-        // Process the batch with the mock proof
-        batchedSync.processBatch(mockProof);
+        // Call executeWithProof with the mock proof
+        // This will decode the proof, check nonce, and call receiveBatch internally
+        batchedSync.executeWithProof(mockProof);
         
-        // Verify that the proof hash is marked as used
-        bytes32 proofHash = keccak256(abi.encodePacked(SOURCE_CHAIN_ID, sourceContract, uint256(1)));
-        assertTrue(batchedSync.isProofUsed(proofHash), "Proof hash should be marked as used");
+        // Verify that the nonce is marked as used for this source chain and contract
+        assertTrue(batchedSync.usedNonces(SOURCE_CHAIN_ID, sourceContract, nonce), "Nonce should be marked as used");
         
         // Verify state was updated
         bytes memory value1 = batchedSync.getValue(sourceContract, "key1");

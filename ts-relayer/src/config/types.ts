@@ -59,4 +59,6 @@ export interface EnvVars {
   POLYMER_API_TOKEN?: string;
   /** Log level */
   LOG_LEVEL?: string;
+  /** Path to configuration file */
+  CONFIG_PATH?: string;
 }

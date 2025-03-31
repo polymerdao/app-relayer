@@ -1,3 +1,4 @@
+import { Buffer } from 'buffer';
 import axios from 'axios';
 import { ethers } from 'ethers';
 import { RelayEvent, DeliveryRequest } from '../types';
@@ -81,6 +82,13 @@ export class ProofFetcher {
         event.meta.logIndex
       );
 
+      logger.info('Successfully fetched proof', {
+        sourceChainId: event.sourceChain.chainId,
+        destChainId: event.destinationChain.chainId,
+        nonce: event.nonce,
+        txHash: event.meta.txHash
+      });
+
       // Create delivery request
       const deliveryRequest: DeliveryRequest = {
         destinationChainId: event.destinationChain.chainId,
@@ -135,7 +143,12 @@ export class ProofFetcher {
       const result = await this.queryProof(jobId);
       
       if (result.status === 'ready' || result.status === 'complete') {
-        return result.proof;
+        // Decode the Base64 proof from the API into bytes
+        const proofBytes = Buffer.from(result.proof, 'base64');
+        // Convert bytes to a 0x-prefixed hex string for ethers.js
+        const proofHex = '0x' + proofBytes.toString('hex');
+        logger.debug('Decoded proof from Base64 to Hex', { originalLength: result.proof.length, hexLength: proofHex.length });
+        return proofHex;
       }
       
       attempts++;
@@ -155,6 +168,13 @@ export class ProofFetcher {
     logIndex: number
   ): Promise<number> {
     try {
+      logger.info('Requesting proof from Polymer API', {
+        chainId,
+        blockNumber,
+        txIndex,
+        logIndex,
+        endpoint: this.polymerApi.endpoint
+      });
       const response = await axios.post(
         this.polymerApi.endpoint,
         {
