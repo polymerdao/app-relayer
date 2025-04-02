@@ -39,7 +39,3 @@ ENV CONFIG_PATH=/app/config/config.yaml
 
 # Set the entrypoint
 CMD ["node", "dist/index.js"]
-
-# Usage instructions
-# To run with a custom config:
-# docker run -v /path/to/config.yaml:/app/config/config.yaml -e PRIVATE_KEY=your_key your-image-name
