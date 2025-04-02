@@ -4,6 +4,8 @@ polymer_prover_address_dev := "0xfbfbfDdd6e35dA57b7B0F9a2C10E34Be70B3A4E9"
 polymer_prover_address_sepolia := "0x4B723ee254aAbCf22b4D98a709F86C62A97D9957"
 contract_addr_chain_a := "0x75364ec12D31Cc678dfCFDFc25FF264aC863211A"
 contract_addr_chain_b := "0x75364ec12D31Cc678dfCFDFc25FF264aC863211A"
+contract_addr_optimism_sepolia := "0x19d69402f218b9997a904648d71f22be8a8bfb4a"
+contract_addr_base_sepolia := "0x96ebfae22b549beecdf50f9adc0850fb548a69fc"
 testnet_config := "./ts-relayer/config/config.testnet.yaml"
 
 deploy-dev-chain-a:
@@ -53,12 +55,12 @@ call-crossChainChecker-base-sepolia:
        --rpc-url https://sepolia.base.org
 
 call-crossChainChecker-optimism-sepolia:
-    cast call {{ contract_addr_chain_a }} \
+    cast call {{ contract_addr_optimism_sepolia }} \
        "crossChainChecker(uint32)(bool,bytes,uint256)" \
-       902 \
+       11155420 \
        --rpc-url https://sepolia.optimism.io
 
-update-batch:
+update-batch-dev:
     cast send "{{ contract_addr_chain_a }}" \
         "setBatchedValue(string,bytes)" \
         "key1" "0x1234" \
@@ -73,6 +75,23 @@ update-batch:
         "setBatchedValue(string,bytes)" \
         "key3" "0x9abc" \
         --rpc-url http://localhost:8553 \
+        --private-key {{private_key}}
+
+update-batch-testnet:
+    cast send "{{ contract_addr_optimism_sepolia }}" \
+        "setBatchedValue(string,bytes)" \
+        "key1" "0x1234" \
+        --rpc-url https://sepolia.optimism.io \
+        --private-key {{private_key}}
+    cast send "{{ contract_addr_optimism_sepolia }}" \
+        "setBatchedValue(string,bytes)" \
+        "key2" "0x5678" \
+        --rpc-url https://sepolia.optimism.io \
+        --private-key {{private_key}}
+    cast send "{{ contract_addr_optimism_sepolia }}" \
+        "setBatchedValue(string,bytes)" \
+        "key3" "0x9abc" \
+        --rpc-url https://sepolia.optimism.io \
         --private-key {{private_key}}
 
 build-docker:
