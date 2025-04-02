@@ -1,11 +1,10 @@
 private_key := env("PRIVATE_KEY")
-polymer_api_endpoint_testnet := "https://proof.testnet.polymer.zone"
 polymer_api_token_testnet := env("POLYMER_API_TOKEN_TESTNET")
 polymer_prover_address_dev := "0xfbfbfDdd6e35dA57b7B0F9a2C10E34Be70B3A4E9"
 polymer_prover_address_sepolia := "0x4B723ee254aAbCf22b4D98a709F86C62A97D9957"
 contract_addr_chain_a := "0x75364ec12D31Cc678dfCFDFc25FF264aC863211A"
 contract_addr_chain_b := "0x75364ec12D31Cc678dfCFDFc25FF264aC863211A"
-testnet_config := "config/config.testnet.yaml"
+testnet_config := "./ts-relayer/config/config.testnet.yaml"
 
 deploy-dev-chain-a:
     POLYMER_PROVER_ADDRESS={{ polymer_prover_address_dev }} \
@@ -82,7 +81,6 @@ build-docker:
 run-docker:
     docker run -it --rm \
         -e PRIVATE_KEY={{ private_key }} \
-        -e POLYMER_API_ENDPOINT={{ polymer_api_endpoint_testnet }} \
         -e POLYMER_API_TOKEN={{ polymer_api_token_testnet }} \
         -v {{ testnet_config }}:/app/config/config.yaml \
         ts-relayer
