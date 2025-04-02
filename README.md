@@ -73,6 +73,89 @@ abstract contract CrossChainExecutor {
 - **Replay-Protected**: Nonce system prevents duplicate executions
 - **Chain-Specific**: Supports different execution parameters per destination chain
 
+## Setup Guide for Running the Relayer
+
+### Prerequisites
+
+- Docker installed on your machine
+- A valid Polymer API key for Testnet
+- Private key for transaction signing
+
+### Step 1: Obtain a Polymer API Key
+
+1. Visit [https://accounts.testnet.polymer.zone/manage-keys](https://accounts.testnet.polymer.zone/manage-keys) to create an API key
+   - If you don't have permission, contact the Polymer team to provide one
+2. Save this key for later use as `POLYMER_API_TOKEN_TESTNET`
+
+### Step 2: Set Up Environment Variables
+
+Create a file to store your environment variables or set them directly:
+
+```bash
+export PRIVATE_KEY=your_private_key_here
+export POLYMER_API_TOKEN_TESTNET=your_polymer_api_token_here
+export OPTIMISM_SEPOLIA_RPC_URL=https://sepolia.optimism.io  # Default value in justfile
+```
+
+### Step 3: Configure the Relayer
+
+The configuration is specified in YAML files:
+- For development: `./ts-relayer/config/config.dev.yaml`
+- For testnet: `./ts-relayer/config/config.testnet.yaml`
+
+The testnet configuration is set up to relay messages between the batch state sync contracts on Optimism Sepolia and Base Sepolia.
+
+### Step 4: Build the Docker Image
+
+```bash
+just build-docker
+```
+
+This command builds the Docker image for the TypeScript relayer.
+
+### Step 5: Run the Relayer
+
+For local development:
+```bash
+just run
+```
+
+For testnet environment:
+```bash
+just run-docker
+```
+
+This will start the relayer in a Docker container with the appropriate configuration, using the proof-api endpoint: `https://proof.testnet.polymer.zone`.
+
+### Step 6: Interact with the Contracts
+
+To update batch values on the source chain (Optimism Sepolia):
+```bash
+just update-batch-testnet
+```
+
+To check if there are pending executions to be relayed:
+```bash
+just call-crossChainChecker-optimism-sepolia
+just call-crossChainChecker-base-sepolia
+```
+
+## Deploying Contracts
+
+To deploy the BatchedStateSync contract:
+
+### On Development Chains:
+```bash
+just deploy-dev-chain-a  # Deploy to local chain A (port 8553)
+just deploy-dev-chain-b  # Deploy to local chain B (port 8554)
+```
+
+### On Test Networks:
+```bash
+just deploy-optimism-sepolia  # Deploy to Optimism Sepolia
+just deploy-base-sepolia      # Deploy to Base Sepolia
+```
+
 ## Implementation Example
 
 The `BatchedStateSync.sol` contract demonstrates how to implement the cross-chain resolver interface for batched state updates. This example shows:

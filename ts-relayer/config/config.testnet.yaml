@@ -1,0 +1,20 @@
+pollingIntervalMs: 10000
+
+# Chain configurations
+chains:
+  - name: "Optimism Sepolia"
+    chainId: 11155420
+    rpcUrl: "https://sepolia.optimism.io"
+  - name: "Base Sepolia"
+    chainId: 84532
+    rpcUrl: "https://sepolia.base.org"
+
+# Relay pairs to monitor
+relayPairs:
+  - sourceChainId: 11155420
+    sourceResolverAddress: "0x8af2F08959D5D389dEF029d5A6A7C876c1E329ca"
+    destChainId: 84532
+    destDappAddress: "0x7c81028766F3283473c8840e30eB466a7809bf3E"
+
+polymerApi:
+  endpoint: "https://proof.testnet.polymer.zone"

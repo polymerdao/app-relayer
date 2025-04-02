@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "@prover/interfaces/ICrossL2ProverV2.sol";
-import "forge-std/console.sol";
 
 /**
  * @title CrossChainExecutor
