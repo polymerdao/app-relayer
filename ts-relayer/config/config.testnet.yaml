@@ -12,9 +12,9 @@ chains:
 # Relay pairs to monitor
 relayPairs:
   - sourceChainId: 11155420
-    sourceResolverAddress: "0x19d69402f218b9997a904648d71f22be8a8bfb4a"
+    sourceResolverAddress: "0x8af2F08959D5D389dEF029d5A6A7C876c1E329ca"
     destChainId: 84532
-    destDappAddress: "0x96ebfae22b549beecdf50f9adc0850fb548a69fc"
+    destDappAddress: "0x7c81028766F3283473c8840e30eB466a7809bf3E"
 
 polymerApi:
   endpoint: "https://proof.testnet.polymer.zone"
